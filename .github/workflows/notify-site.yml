@@ -6,11 +6,18 @@ name: Notify site of lesson changes
 # re-read. That is this workflow.
 #
 # The website side (sync-crunch-c.yml) also runs on a weekly cron, so a missed
-# dispatch delays a lesson edit rather than losing it.
+# dispatch delays a lesson edit rather than losing it. That backstop is why
+# this failed on all four of its runs, 2026-08-29 to 2026-08-31, with nobody
+# noticing: WEBSITE_DISPATCH_TOKEN was never added to this repo, so the curl
+# sent "Authorization: Bearer " with nothing after it and took a 401 each time.
+# A 401 here means an unset secret; the 403 that the texastoast and magmascript
+# releases hit means a PAT the org rename silently unscoped. Same root cause
+# either way -- a credential pasted per repo, one repo at a time.
 #
-# Needs a WEBSITE_DISPATCH_TOKEN secret with contents: write on
-# magmacrunch-media/magmacrunch.com — the same secret shape the magmascript
-# release workflow uses to dispatch its playground sync.
+# So this mints an installation token per run, scoped to the single repo it
+# dispatches to, the way those two workflows now do. It needs RELEASE_APP_ID
+# and RELEASE_APP_PRIVATE_KEY: set them as *organization* secrets, not here,
+# so the next repo that needs to dispatch cannot ship without them.
 
 on:
   push:
@@ -22,14 +29,42 @@ on:
       - "README.md"
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   dispatch:
     runs-on: ubuntu-latest
     steps:
+      # An unset secret is not an error to the expression that reads it -- it
+      # expands to the empty string and the failure surfaces later, wearing the
+      # face of a different problem. Name it here instead.
+      - name: Check the App credentials are present
+        env:
+          APP_ID: ${{ secrets.RELEASE_APP_ID }}
+          APP_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+        run: |
+          if [ -z "$APP_ID" ] || [ -z "$APP_KEY" ]; then
+            echo "::error::RELEASE_APP_ID / RELEASE_APP_PRIVATE_KEY are not visible to this repository."
+            echo "Set them as organization secrets on magmacrunch-media (Settings -> Secrets and"
+            echo "variables -> Actions), which also covers texastoast and magmascript. The lesson"
+            echo "pages still refresh at the weekly sync-crunch-c cron meanwhile, so this is late,"
+            echo "not lost."
+            exit 1
+          fi
+
+      - name: Mint a short-lived token for the website repo
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: magmacrunch-media
+          repositories: magmacrunch.com
+
       - name: Dispatch lesson sync
         run: |
           curl -sS -f -X POST \
-            -H "Authorization: Bearer ${{ secrets.WEBSITE_DISPATCH_TOKEN }}" \
+            -H "Authorization: Bearer ${{ steps.app-token.outputs.token }}" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/magmacrunch-media/magmacrunch.com/dispatches \
             -d '{"event_type":"crunch-c-update","client_payload":{"sha":"${{ github.sha }}"}}'
