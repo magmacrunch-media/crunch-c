@@ -112,6 +112,12 @@ Files that are supposed to fault must still fault -- if one of them starts
 exiting cleanly, that is a failure too. Run it after editing any lesson. CI
 runs it on every push and pull request.
 
+## Support This Project
+
+If you find crunch-c useful, consider supporting its development:
+
+[![Sponsor](https://img.shields.io/badge/%E2%9D%A4_Sponsor-pink)](https://github.com/sponsors/magmacrunch-media)
+
 ## License
 
 Apache-2.0
