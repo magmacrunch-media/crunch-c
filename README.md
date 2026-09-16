@@ -117,6 +117,7 @@ runs it on every push and pull request.
 If you find crunch-c useful, consider supporting its development:
 
 [![Sponsor](https://img.shields.io/badge/%E2%9D%A4_Sponsor-pink)](https://github.com/sponsors/magmacrunch-media)
+[![PayPal](https://img.shields.io/badge/Donate-PayPal-blue)](https://www.paypal.biz/magmacrunchmedia)
 
 ## License
 
